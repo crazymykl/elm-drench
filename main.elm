@@ -62,12 +62,9 @@ get2d (x, y) model =
 
 set2d : Point -> Color -> Model -> Model
 set2d (x, y) color model =
-  case Array.get y model of
-    Just row ->
-      model |> Array.set y (Array.set x color row)
-
-    Nothing ->
-      model
+  Array.get y model
+    |> Maybe.map (flip (Array.set y << Array.set x color) model)
+    |> Maybe.withDefault model
 
 
 cascade : Color -> Color -> Point -> Model -> Model
