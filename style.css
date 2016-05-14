@@ -1,0 +1,9 @@
+.grid > .row {
+  height: 25px;
+}
+
+.grid .cell {
+  height: 25px;
+  width: 25px;
+  display: inline-block;
+}

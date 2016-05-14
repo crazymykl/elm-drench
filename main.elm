@@ -1,91 +1,111 @@
 import Array exposing (Array)
 import Random exposing (Generator)
 import Html exposing (..)
-import Html.Attributes exposing (class, style)
+import Html.App exposing (beginnerProgram)
+import Html.Attributes exposing (class, style, rel, href)
 import Html.Events exposing (onClick)
-import StartApp.Simple exposing (start)
 
-type NextModel = NextModel (Maybe Model)
+type alias Model = Array (Array Color)
+type alias Point = (Int, Int)
+type Color = Red | Green | Blue | Purple
 
-type alias Model =
-  Array (Array Color)
-type Color = Red | Green
-
-
+main : Program Never
 main =
-  start { model = model, view = view, update = update }
+  beginnerProgram { model = model, view = view, update = update }
+
 
 model : Model
 model =
-  randomModel 10 10 (Random.initialSeed 5)
+  randomModel 20 20 (Random.initialSeed 4)
 
 
-view : Signal.Address (Int, Int) -> Model -> Html.Html
-view address model =
+view : Model -> Html (Color)
+view model =
   let
-    enumerate f xs = Array.indexedMap f xs |> Array.toList
-    viewRow i row = div [style [("height", "25px")]] (enumerate (viewCell i) row)
-    viewCell i j cell = a
-      [ onClick address (j, i)
-      , style
-        [ ("background-color", toString cell)
-        , ("height", "25px")
-        , ("width", "25px")
-        , ("display", "inline-block")
-        ]
+    colorButtons color = button [onClick color] [text (color |> toString)]
+    arrMap f xs = Array.map f xs |> Array.toList
+    viewRow row = div [class "row"] (arrMap viewCell row)
+    viewCell cell = span
+      [ style [("background-color", toString cell)]
+      , class "cell"
+      ] []
+  in
+    main' []
+      [ css "style.css"
+      , div [class "buttons"] (List.map colorButtons [Red, Green, Blue, Purple])
+      , div [class "grid"] (arrMap viewRow model)
       ]
-      []
-  in
-    div [] (enumerate viewRow model)
 
-update : (Int, Int) -> Model -> Model
-update (x, y) model =
-  let
-    cell = get2d (x, y) model
-  in
-    case cell of
-      Just cell ->
-        model |> set2d (x, y) (successor cell)
 
-      Nothing ->
+update : Color -> Model -> Model
+update color model =
+  case get2d (0, 0) model of
+    Just oldColor ->
+      if color == oldColor then
         model
+      else
+        recolor oldColor color (0, 0) model
+
+    Nothing ->
+      model
 
 
-get2d : (Int, Int) -> Model -> Maybe Color
+css : String -> Html a
+css path =
+  node "link" [rel "stylesheet", href path] []
+
+
+get2d : Point -> Model -> Maybe Color
 get2d (x, y) model =
   Array.get y model `Maybe.andThen` Array.get x
 
 
-set2d : (Int, Int) -> Color -> Model -> Model
+set2d : Point -> Color -> Model -> Model
 set2d (x, y) color model =
+  case Array.get y model of
+    Just row ->
+      model |> Array.set y (Array.set x color row)
+
+    Nothing ->
+      model
+
+
+cascade : Color -> Color -> Point -> Model -> Model
+cascade color newColor point model =
+  List.foldl (recolor color newColor) model (neighbors point)
+
+
+recolor : Color -> Color -> Point -> Model -> Model
+recolor color newColor point model =
   let
-    row = Array.get y model
+    myColor = get2d point model
+    nextModel = set2d point newColor model
   in
-    case row of
-      Just row ->
-        model |> Array.set y (Array.set x color row)
+    if myColor == Just color then
+      cascade color newColor point nextModel
+    else
+      model
 
-      Nothing ->
-        model
 
-successor : Color -> Color
-successor color =
-  case color of
-    Red -> Green
-    Green -> Red
+neighbors : Point -> List Point
+neighbors (x, y) =
+  [ (x, y-1), (x-1, y), (x+1, y), (x, y+1) ]
 
 
 randomColor : Generator Color
 randomColor = Random.map (\x ->
-  if x then
-    Red
-  else
-    Green) Random.bool
+  case x of
+    0 -> Red
+    1 -> Blue
+    2 -> Green
+    3 -> Purple
+    _ -> Debug.crash "Not enough colors!"
+  ) (Random.int 0 3)
 
 
 randomModel : Int -> Int -> Random.Seed -> Model
 randomModel x y seed =
   let
-    randoms = fst <| Random.generate (Random.list x (Random.list y randomColor)) seed
+    randoms = fst <| Random.step (Random.list x <| Random.list y randomColor) seed
   in
     List.map Array.fromList randoms |> Array.fromList
