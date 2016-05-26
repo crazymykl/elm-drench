@@ -1,35 +1,41 @@
 import Array exposing (Array)
 import Random exposing (Generator)
 import Random.Array exposing (sample)
+import Grid exposing (..)
 import Html exposing (..)
 import Html.App exposing (program)
 import Html.Attributes exposing (class, style, rel, href)
 import Html.Events exposing (onClick)
 
-type alias Board = Array (Array Color)
-type alias Point = (Int, Int)
+type alias Board = Grid Color
 type Color = Red | Green | Blue | Purple | Yellow
+
 type Msg
-  = RandomBoard Board
+  = RandomBoard
+  | SetBoard Board
   | Advance Color
 
+type alias Model =
+  { board: Board
+  , moveCount: Int
+  }
 
 main : Program Never
 main =
   program { init = init, view = view, update = update, subscriptions = \_ -> Sub.none }
 
 
-init : (Board, Cmd Msg)
+init : (Model, Cmd Msg)
 init =
-  (Array.empty, randomBoard 20 20)
+  ({board = Array.empty, moveCount = 0}, randomBoard 20 20)
 
 
-view : Board -> Html Msg
-view board =
+view : Model -> Html Msg
+view model =
   let
-    colorButtons color = button [onClick <| Advance color] [text (color |> toString)]
+    colorButtons color = button [onClick <| Advance color] [text <| toString color]
     arrMap f xs = Array.map f xs |> Array.toList
-    viewRow row = div [class "row"] (arrMap viewCell row)
+    viewRow row = div [class "row"] <| arrMap viewCell row
     viewCell cell = span
       [ style [("background-color", toString cell)]
       , class "cell"
@@ -37,33 +43,40 @@ view board =
   in
     main' []
       [ css "style.css"
-      , div [class "buttons"] (arrMap colorButtons colors)
-      , div [class "grid"] (arrMap viewRow board)
+      , div [class "buttons"] <| arrMap colorButtons colors
+      , div [class "grid"] <| arrMap viewRow model.board
+      , span [] [text <| "Moves: " ++ toString model.moveCount]
+      , button [onClick RandomBoard] [text "Reset"]
       ]
 
 
-update : Msg -> Board -> (Board, Cmd Msg)
-update msg board =
+update : Msg -> Model -> (Model, Cmd Msg)
+update msg model =
+  case msg of
+    Advance color ->
+      advance color model ! []
+
+    SetBoard board ->
+      { board = board
+      , moveCount = 0
+      } ! []
+
+    RandomBoard ->
+       model ! [randomBoard 20 20]
+
+
+advance : Color -> Model -> Model
+advance color model =
   let
-    nextBoard = case msg of
-      Advance color ->
-        advance color board
-
-      RandomBoard board ->
-        board
-  in
-    (nextBoard, Cmd.none)
-
-
-advance : Color -> Board -> Board
-advance color board =
-  let
-    oldColor = Maybe.withDefault color <| get2d (0, 0) board
+    oldColor = Maybe.withDefault color <| get2d (0, 0) model.board
   in
     if color == oldColor then
-      board
+      model
     else
-      recolor oldColor color (0, 0) board
+      { model
+      | board = recolor oldColor color (0, 0) model.board
+      , moveCount = model.moveCount + 1
+      }
 
 
 css : String -> Html a
@@ -71,21 +84,9 @@ css path =
   node "link" [rel "stylesheet", href path] []
 
 
-get2d : Point -> Board -> Maybe Color
-get2d (x, y) board =
-  Array.get y board `Maybe.andThen` Array.get x
-
-
-set2d : Point -> Color -> Board -> Board
-set2d (x, y) color board =
-  Array.get y board
-    |> Maybe.map (flip (Array.set y << Array.set x color) board)
-    |> Maybe.withDefault board
-
-
 cascade : Color -> Color -> Point -> Board -> Board
 cascade color newColor point board =
-  List.foldl (recolor color newColor) board (neighbors point)
+  List.foldl (recolor color newColor) board <| neighbors point
 
 
 recolor : Color -> Color -> Point -> Board -> Board
@@ -100,24 +101,16 @@ recolor color newColor point board =
       board
 
 
-neighbors : Point -> List Point
-neighbors (x, y) =
-  [ (x, y-1), (x-1, y), (x+1, y), (x, y+1) ]
-
-
 colors : Array Color
-colors = Array.fromList [Red, Green, Blue, Purple, Yellow]
+colors =
+  Array.fromList [Red, Green, Blue, Purple, Yellow]
 
 
 randomColor : Generator Color
 randomColor =
-  Random.map (Maybe.withDefault Red) (sample colors)
+  Random.map (Maybe.withDefault Red) <| sample colors
 
 
 randomBoard : Int -> Int -> Cmd Msg
 randomBoard x y =
-  let
-    randArray n q = Array.fromList `Random.map` Random.list n q
-    randoms = randArray x <| randArray y randomColor
-  in
-    Random.generate RandomBoard randoms
+  Random.generate SetBoard <| randomGrid x y randomColor
