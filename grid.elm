@@ -26,7 +26,7 @@ neighbors (x, y) =
 randomGrid : Int -> Int -> Generator a -> Generator (Grid a)
 randomGrid x y gen =
   let
-    randArray n q = Array.fromList `Random.map` Random.list n q
+    randArray n g = Array.fromList `Random.map` Random.list n g
   in
     randArray x <| randArray y gen
 
