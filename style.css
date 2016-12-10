@@ -1,0 +1,19 @@
+.grid > .row {
+  height: 25px;
+  white-space: nowrap;
+}
+
+.grid .cell {
+  height: 25px;
+  width: 25px;
+  display: inline-block;
+}
+
+.new-game {
+  margin-left: 20px
+}
+
+.new-game input {
+  margin-right: 10px;
+  width: 30px;
+}
