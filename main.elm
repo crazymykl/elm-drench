@@ -1,12 +1,12 @@
-module Main exposing (..)
-
-import String
+module Main exposing (main)
 import Array exposing (Array)
-import Random exposing (Generator)
+import Browser exposing (element)
 import Grid exposing (..)
 import Html exposing (..)
-import Html.Attributes exposing (class, style, rel, href, type_, value)
+import Html.Attributes exposing (class, href, rel, style, type_, value)
 import Html.Events exposing (onClick, onInput)
+import Random exposing (Generator)
+import String
 
 
 type alias Board =
@@ -36,21 +36,23 @@ type alias Model =
     }
 
 
-main : Program Never Model Msg
+main : Program () Model Msg
 main =
-    program { init = init, view = view, update = update, subscriptions = always Sub.none }
+    element { init = always init, view = view, update = update, subscriptions = always Sub.none }
 
 
 init : ( Model, Cmd Msg )
 init =
-    newModel ( 20, 20 ) Grid.empty ! [ randomBoard ( 20, 20 ) ]
+    ( newModel ( 20, 20 ) Grid.empty
+    , randomBoard ( 20, 20 )
+    )
 
 
 view : Model -> Html Msg
 view model =
     let
         colorButtons color =
-            button [ onClick <| Advance color ] [ text <| toString color ]
+            button [ onClick <| Advance color ] [ text <| colorName color ]
 
         arrMap f xs =
             Array.map f xs |> Array.toList
@@ -60,7 +62,7 @@ view model =
 
         viewCell cell =
             span
-                [ style [ ( "background-color", toString cell ) ]
+                [ style "background-color" (colorName cell)
                 , class "cell"
                 ]
                 []
@@ -69,48 +71,58 @@ view model =
             model.newSize
 
         numInput msg =
-            String.toInt >> Result.withDefault 0 >> msg |> onInput
+            String.toInt >> Maybe.withDefault 0 >> msg |> onInput
     in
-        main_ []
-            [ css "style.css"
-            , div [ class "buttons" ] <| List.map colorButtons colors
-            , div [ class "grid" ] <| arrMap viewRow model.board
-            , text <| "Moves: " ++ toString model.moveCount
-            , span [ class "new-game" ]
-                [ text "Rows: "
-                , input [ type_ "number", value <| toString x, numInput SetX ] []
-                , text "Cols: "
-                , input [ type_ "number", value <| toString y, numInput SetY ] []
-                , button [ onClick RandomBoard ] [ text "New Game" ]
-                ]
+    main_ []
+        [ css "style.css"
+        , div [ class "buttons" ] <| List.map colorButtons colors
+        , div [ class "grid" ] <| arrMap viewRow model.board
+        , text <| "Moves: " ++ String.fromInt model.moveCount
+        , span [ class "new-game" ]
+            [ text "Rows: "
+            , input [ type_ "number", value <| String.fromInt x, numInput SetX ] []
+            , text "Cols: "
+            , input [ type_ "number", value <| String.fromInt y, numInput SetY ] []
+            , button [ onClick RandomBoard ] [ text "New Game" ]
             ]
+        ]
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Advance color ->
-            advance color model ! []
+            ( advance color model
+            , Cmd.none
+            )
 
         SetBoard board ->
-            newModel model.newSize board ! []
+            ( newModel model.newSize board
+            , Cmd.none
+            )
 
         RandomBoard ->
-            model ! [ randomBoard model.newSize ]
+            ( model
+            , randomBoard model.newSize
+            )
 
         SetX x ->
             let
-                ( old_x, y ) =
+                ( _, y ) =
                     model.newSize
             in
-                { model | newSize = ( x, y ) } ! []
+            ( { model | newSize = ( x, y ) }
+            , Cmd.none
+            )
 
         SetY y ->
             let
-                ( x, old_y ) =
+                ( x, _ ) =
                     model.newSize
             in
-                { model | newSize = ( x, y ) } ! []
+            ( { model | newSize = ( x, y ) }
+            , Cmd.none
+            )
 
 
 newModel : Point -> Board -> Model
@@ -127,13 +139,14 @@ advance color model =
         newBoard =
             makeMove color model.board
     in
-        if model.board == newBoard then
-            model
-        else
-            { model
-                | board = newBoard
-                , moveCount = model.moveCount + 1
-            }
+    if model.board == newBoard then
+        model
+
+    else
+        { model
+            | board = newBoard
+            , moveCount = model.moveCount + 1
+        }
 
 
 makeMove : Color -> Board -> Board
@@ -142,10 +155,11 @@ makeMove color board =
         oldColor =
             Maybe.withDefault color <| get2d ( 0, 0 ) board
     in
-        if color == oldColor then
-            board
-        else
-            recolor oldColor color ( 0, 0 ) board
+    if color == oldColor then
+        board
+
+    else
+        recolor oldColor color ( 0, 0 ) board
 
 
 css : String -> Html a
@@ -153,24 +167,11 @@ css path =
     node "link" [ rel "stylesheet", href path ] []
 
 
-cascade : Color -> Color -> Point -> Board -> Board
-cascade color newColor point board =
-    List.foldl (recolor color newColor) board <| neighbors point
-
-
 recolor : Color -> Color -> Point -> Board -> Board
-recolor color newColor point board =
-    let
-        myColor =
-            get2d point board
-
-        nextBoard =
-            set2d point newColor board
-    in
-        if myColor == Just color then
-            cascade color newColor point nextBoard
-        else
-            board
+recolor oldColor color point board =
+    neighbors point
+        |> List.filter (\p -> get2d p board == Just oldColor)
+        |> List.foldl (recolor oldColor color) (set2d point color board)
 
 
 sample : Array a -> Generator (Maybe a)
@@ -179,12 +180,31 @@ sample arr =
         gen =
             Random.int 0 <| Array.length arr - 1
     in
-        Random.map (flip Array.get arr) gen
+    Random.map (\a -> Array.get a arr) gen
 
 
 colors : List Color
 colors =
     [ Red, Green, Blue, Purple, Yellow ]
+
+
+colorName : Color -> String
+colorName color =
+    case color of
+        Red ->
+            "Red"
+
+        Green ->
+            "Green"
+
+        Blue ->
+            "Blue"
+
+        Purple ->
+            "Purple"
+
+        Yellow ->
+            "Yellow"
 
 
 randomColor : Generator Color

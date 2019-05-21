@@ -1,4 +1,4 @@
-module Grid exposing (..)
+module Grid exposing (Grid, Point, empty, get2d, neighbors, randomGrid, set2d)
 
 import Array exposing (Array)
 import Random exposing (Generator)
@@ -20,7 +20,7 @@ get2d ( x, y ) grid =
 set2d : Point -> a -> Grid a -> Grid a
 set2d ( x, y ) value grid =
     Array.get y grid
-        |> Maybe.map (flip (Array.set y << Array.set x value) grid)
+        |> Maybe.map (\a -> (Array.set y << Array.set x value) a grid)
         |> Maybe.withDefault grid
 
 
@@ -35,7 +35,7 @@ randomGrid x y gen =
         randArray n g =
             Random.map Array.fromList <| Random.list n g
     in
-        randArray x <| randArray y gen
+    randArray x <| randArray y gen
 
 
 empty : Grid a
